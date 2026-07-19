@@ -6,6 +6,80 @@
 'use strict';
 
 /* ================================================================
+   AUTH & API CLIENT
+   ================================================================ */
+const API_BASE = 'http://localhost:3001';
+
+// Auth Guard: redirect to login if no token
+const token = localStorage.getItem('medeasy_token');
+const userStr = localStorage.getItem('medeasy_user');
+let currentUser = null;
+
+if (!token || !userStr) {
+  window.location.href = 'auth.html';
+} else {
+  try {
+    currentUser = JSON.parse(userStr);
+    // Check expiration
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 < Date.now()) throw new Error('expired');
+  } catch (err) {
+    localStorage.removeItem('medeasy_token');
+    localStorage.removeItem('medeasy_user');
+    window.location.href = 'auth.html';
+  }
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...(options.headers || {})
+    }
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('medeasy_token');
+    window.location.href = 'auth.html';
+  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'API Error');
+  return data;
+}
+
+// Populate UI with user data
+document.addEventListener('DOMContentLoaded', () => {
+  if (currentUser) {
+    const avatar = currentUser.name.charAt(0).toUpperCase();
+    document.getElementById('user-avatar').textContent = avatar;
+    document.getElementById('user-name').textContent = currentUser.name;
+    document.getElementById('user-email').textContent = currentUser.email;
+
+    document.getElementById('topbar-avatar').textContent = avatar;
+    document.getElementById('dropdown-name').textContent = currentUser.name;
+    document.getElementById('dropdown-email').textContent = currentUser.email;
+  }
+
+  // Sign out handlers
+  const signout = () => {
+    localStorage.removeItem('medeasy_token');
+    localStorage.removeItem('medeasy_user');
+    window.location.href = 'auth.html';
+  };
+  document.getElementById('signout-btn').addEventListener('click', signout);
+  document.getElementById('dropdown-signout').addEventListener('click', signout);
+
+  // Dropdown toggle
+  const topbarUser = document.getElementById('topbar-user');
+  topbarUser.addEventListener('click', (e) => {
+    topbarUser.classList.toggle('open');
+    e.stopPropagation();
+  });
+  document.addEventListener('click', () => topbarUser.classList.remove('open'));
+});
+
+/* ================================================================
    ROUTING — Page navigation
    ================================================================ */
 const Router = (() => {
@@ -260,14 +334,30 @@ const InsuranceEngine = (() => {
     return text.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--teal)">$1</strong>');
   }
 
-  function handleQuery(query) {
+  async function handleQuery(query) {
     if (!query.trim()) return;
     addBubble(query, 'user');
-    const response = getResponse(query);
-    setTimeout(() => {
-      addBubble(response, 'ai');
-      VoiceEngine.speak(response.replace(/\*\*(.*?)\*\*/g, '$1').replace(/<[^>]*>/g, ''));
-    }, 400);
+
+    // Loading indicator
+    const loadingBubble = document.createElement('div');
+    loadingBubble.className = 'chat-bubble ai';
+    loadingBubble.innerHTML = `<div class="ai-label">🩺 MedEasy AI</div><span style="opacity:0.6;">Thinking...</span>`;
+    const history = document.getElementById('insurance-chat-history');
+    history.appendChild(loadingBubble);
+    history.scrollTop = history.scrollHeight;
+
+    try {
+      const data = await apiFetch('/api/insurance', {
+        method: 'POST',
+        body: JSON.stringify({ query, plan })
+      });
+      loadingBubble.remove();
+      addBubble(data.answer, 'ai');
+      VoiceEngine.speak(data.answer.replace(/\*\*(.*?)\*\*/g, '$1').replace(/<[^>]*>/g, ''));
+    } catch (err) {
+      loadingBubble.remove();
+      addBubble('Sorry, I encountered an error connecting to the server.', 'ai');
+    }
   }
 
   function updatePlan() {
@@ -397,27 +487,35 @@ const HospitalEngine = (() => {
     `).join('');
   }
 
-  function search() {
-    const city = document.getElementById('hospital-city').value.toLowerCase().trim();
+  async function search() {
+    const city = document.getElementById('hospital-city').value.trim();
     const specialty = document.getElementById('hospital-specialty').value;
+    
+    // Show loading skeleton
+    const grid = document.getElementById('hospitals-grid');
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-2);">Loading hospitals...</div>';
 
-    let results = hospitals.filter(h => {
-      const matchesCity = !city || h.city.includes(city) || h.address.toLowerCase().includes(city);
-      const matchesSpecialty = specialty === 'all' || h.specialties.includes(specialty);
-      const matchesFilter = filterMap[activeFilter] ? filterMap[activeFilter](h) : true;
-      return matchesCity && matchesSpecialty && matchesFilter;
-    });
+    try {
+      const data = await apiFetch(`/api/hospitals?city=${encodeURIComponent(city)}&specialty=${encodeURIComponent(specialty)}`);
+      
+      // Still apply the active pill filter locally for snappy UI
+      let results = data.hospitals.filter(h => {
+        return filterMap[activeFilter] ? filterMap[activeFilter](h) : true;
+      });
 
-    currentResults = results;
-    renderHospitals(results);
+      currentResults = results;
+      renderHospitals(results);
 
-    if (results.length) {
-      VoiceEngine.speak(`Found ${results.length} in-network hospital${results.length > 1 ? 's' : ''}. The top result is ${results[0].name}, rated ${results[0].rating} stars, ${results[0].distance} away.`);
+      if (results.length) {
+        VoiceEngine.speak(`Found ${results.length} in-network hospital${results.length > 1 ? 's' : ''}. The top result is ${results[0].name}, rated ${results[0].rating} stars.`);
+      }
+    } catch (err) {
+      grid.innerHTML = `<div class="no-results"><p>Error connecting to server.</p></div>`;
     }
   }
 
   function bookHere(hospitalId) {
-    const hospital = hospitals.find(h => h.id === hospitalId);
+    const hospital = currentResults.find(h => h.id === hospitalId) || hospitals.find(h => h.id === hospitalId);
     if (hospital) {
       BookingEngine.preSelectHospital(hospital);
       Router.go('booking');
@@ -592,27 +690,57 @@ const BookingEngine = (() => {
     booking.doctor = doc;
   }
 
-  function confirm() {
+  async function confirm() {
+    const btn = document.getElementById('booking-confirm');
+    btn.textContent = 'Booking...';
+    btn.disabled = true;
+
     const name = document.getElementById('patient-name').value || 'John Doe';
-    const dob = document.getElementById('patient-dob').value || 'N/A';
-    const insId = document.getElementById('patient-ins-id').value || 'INS-000000';
-    booking.patient = { name, dob, insId };
+    const dob = document.getElementById('patient-dob').value || '';
+    const email = document.getElementById('patient-email').value || '';
+    const phone = document.getElementById('patient-phone').value || '';
+    const insId = document.getElementById('patient-ins-id').value || '';
+    const insProvider = document.getElementById('patient-ins-provider').value || '';
+    booking.patient = { name, dob, email, phone, insId, insProvider };
 
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const dateStr = selectedDate ? `${months[selectedDate.getMonth()]} ${selectedDate.getDate()}, ${selectedDate.getFullYear()}` : 'N/A';
-    const bookingId = 'ME-' + Math.floor(100000 + Math.random() * 900000);
 
-    document.getElementById('confirm-booking-id').textContent = `Booking ID: ${bookingId}`;
-    document.getElementById('confirm-doctor').textContent = booking.doctor ? booking.doctor.name : 'N/A';
-    document.getElementById('confirm-specialty').textContent = booking.doctor ? booking.doctor.spec : 'N/A';
-    document.getElementById('confirm-hospital').textContent = booking.doctor ? booking.doctor.hospital : 'N/A';
-    document.getElementById('confirm-date').textContent = dateStr;
-    document.getElementById('confirm-time').textContent = selectedTime || 'N/A';
-    document.getElementById('confirm-patient').textContent = name;
-    document.getElementById('confirm-ins').textContent = insId;
+    try {
+      const data = await apiFetch('/api/booking', {
+        method: 'POST',
+        body: JSON.stringify({
+          doctorName: booking.doctor ? booking.doctor.name : 'Unknown',
+          doctorSpecialty: booking.doctor ? booking.doctor.spec : 'Unknown',
+          hospital: booking.doctor ? booking.doctor.hospital : 'Unknown',
+          apptDate: selectedDate ? selectedDate.toISOString() : new Date().toISOString(),
+          apptTime: selectedTime || '10:00 AM',
+          reason: booking.reason || '',
+          patientName: name,
+          patientEmail: email || 'user@example.com',
+          patientPhone: phone,
+          insuranceId: insId,
+          insuranceProvider: insProvider
+        })
+      });
 
-    goStep(5);
-    VoiceEngine.speak(`Your appointment has been confirmed! You're booked with ${booking.doctor ? booking.doctor.name : 'your doctor'} on ${dateStr} at ${selectedTime}. Your booking ID is ${bookingId}. We'll send a confirmation to your email.`);
+      document.getElementById('confirm-booking-id').textContent = `Booking ID: ${data.bookingId}`;
+      document.getElementById('confirm-doctor').textContent = booking.doctor ? booking.doctor.name : 'N/A';
+      document.getElementById('confirm-specialty').textContent = booking.doctor ? booking.doctor.spec : 'N/A';
+      document.getElementById('confirm-hospital').textContent = booking.doctor ? booking.doctor.hospital : 'N/A';
+      document.getElementById('confirm-date').textContent = dateStr;
+      document.getElementById('confirm-time').textContent = selectedTime || 'N/A';
+      document.getElementById('confirm-patient').textContent = name;
+      document.getElementById('confirm-ins').textContent = insId || 'N/A';
+
+      goStep(5);
+      VoiceEngine.speak(`Your appointment has been confirmed! Your booking ID is ${data.bookingId}. We'll send a confirmation to your email.`);
+    } catch (err) {
+      alert(err.message || 'Error booking appointment');
+    } finally {
+      btn.textContent = '✅ Confirm Appointment';
+      btn.disabled = false;
+    }
   }
 
   function handleVoice(transcript) {
@@ -740,16 +868,19 @@ const TriageEngine = (() => {
   }
 
   function showResult(data) {
-    const urgencyColors = { emergency: 'red', urgent: 'orange', routine: 'green' };
     const urgencyEmojis = { emergency: '🚨', urgent: '⚠️', routine: '✅' };
     const urgencyLabels = { emergency: 'EMERGENCY', urgent: 'URGENT', routine: 'ROUTINE' };
 
     const resultPanel = document.getElementById('triage-result-panel');
     resultPanel.className = `triage-result ${data.urgency}`;
+    
+    const nextStepsHtml = data.nextSteps ? `<ul>${data.nextSteps.map(s => `<li>${s}</li>`).join('')}</ul>` : '';
+    
     resultPanel.innerHTML = `
-      <div class="triage-level">${urgencyEmojis[data.urgency]} ${urgencyLabels[data.urgency]}</div>
-      <div style="font-size:0.88rem;color:var(--text-2);line-height:1.7;margin-bottom:12px;"><strong>Why:</strong> ${data.reason}</div>
-      <div style="font-size:0.88rem;color:var(--text-2);line-height:1.7;margin-bottom:16px;"><strong>Recommended Action:</strong> ${data.care}</div>
+      <div class="triage-level">${urgencyEmojis[data.urgency]} ${data.title || urgencyLabels[data.urgency]}</div>
+      <div style="font-size:0.88rem;color:var(--text-2);line-height:1.7;margin-bottom:12px;"><strong>Assessment:</strong> ${data.message}</div>
+      <div style="font-size:0.88rem;color:var(--text-2);line-height:1.7;margin-bottom:12px;"><strong>Recommended Care:</strong> ${data.carePathway || data.action}</div>
+      ${nextStepsHtml ? `<div style="font-size:0.88rem;color:var(--text-2);line-height:1.7;margin-bottom:16px;"><strong>Next Steps:</strong>${nextStepsHtml}</div>` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${data.urgency === 'emergency' ? '' : `<button class="btn btn-primary btn-sm" onclick="Router.go('booking')">📅 Book Appointment</button>`}
         <button class="btn btn-outline btn-sm" onclick="Router.go('hospitals')">🏥 Find Hospital</button>
@@ -758,48 +889,39 @@ const TriageEngine = (() => {
     `;
     resultPanel.style.display = 'block';
 
-    const speakText = `${urgencyLabels[data.urgency]} level. ${data.reason} ${data.care}`;
+    const speakText = `${data.title || urgencyLabels[data.urgency]} level. ${data.message}`;
     VoiceEngine.speak(speakText);
+  }
+
+  async function assessSymptomStr(symptomStr) {
+    const loadingBubble = document.createElement('div');
+    loadingBubble.className = 'chat-bubble ai';
+    loadingBubble.innerHTML = `<div class="ai-label">🩺 MedEasy Triage</div><span style="opacity:0.6;">Assessing...</span>`;
+    const history = document.getElementById('symptom-history');
+    history.appendChild(loadingBubble);
+    history.scrollTop = history.scrollHeight;
+
+    try {
+      const data = await apiFetch('/api/triage', {
+        method: 'POST',
+        body: JSON.stringify({ symptoms: symptomStr })
+      });
+      loadingBubble.remove();
+      showResult(data);
+    } catch (err) {
+      loadingBubble.remove();
+      addMessage('Sorry, I encountered an error connecting to the server.', 'ai');
+    }
   }
 
   function handleInput(input) {
     if (!input.trim()) return;
-
     addMessage(input, 'user');
-
-    // Handle follow-up
-    if (followUpPending && (input.toLowerCase().includes('yes') || input.toLowerCase().includes('no') || input.toLowerCase().includes('day') || input.toLowerCase().includes('hour'))) {
-      addMessage(`Thank you. Based on all symptoms described, here is your triage assessment:`, 'ai');
-      const lastSymptom = symptoms[symptoms.length - 1];
-      const data = detectSymptom(lastSymptom) || detectSymptom(symptoms.join(' '));
-      if (data) showResult(data);
-      followUpPending = null;
-      return;
-    }
-
-    const detected = detectSymptom(input);
-
-    if (detected) {
-      symptoms.push(detected.symptom);
-      const followUpText = detected.followUp ? `<br><br><em style="color:var(--teal)">${detected.followUp}</em>` : '';
-
-      if (detected.urgency === 'emergency') {
-        addMessage(`I've detected a potentially serious symptom: <strong style="color:var(--red)">${detected.symptom}</strong>. Generating emergency triage now...`, 'ai');
-        setTimeout(() => showResult(detected), 600);
-      } else {
-        addMessage(`I've noted: <strong style="color:var(--teal)">${detected.symptom}</strong>. Do you have any other symptoms, or should I assess this now?${followUpText}`, 'ai');
-        if (detected.followUp) followUpPending = detected;
-      }
-    } else {
-      const clarifying = [
-        'Could you describe your main symptom more specifically? For example: "chest pain", "fever", "headache", "sore throat".',
-        'I didn\'t catch a specific symptom there. Can you tell me what hurts or what you\'re experiencing?',
-        'Let me help you better — what is your primary complaint? (e.g. cough, rash, back pain, nausea)',
-      ];
-      addMessage(clarifying[Math.floor(Math.random() * clarifying.length)], 'ai');
-    }
-
+    symptoms.push(input);
     document.getElementById('symptom-input').value = '';
+    
+    // Assess immediately using the API
+    assessSymptomStr(symptoms.join(', '));
   }
 
   function assess() {
@@ -807,12 +929,7 @@ const TriageEngine = (() => {
       addMessage('Please describe at least one symptom first, and I will assess it for you.', 'ai');
       return;
     }
-    const allText = symptoms.join(' ');
-    const data = detectSymptom(allText) || detectSymptom(symptoms[0]);
-    if (data) {
-      addMessage(`Based on the symptoms you described, here is your triage assessment:`, 'ai');
-      setTimeout(() => showResult(data), 400);
-    }
+    assessSymptomStr(symptoms.join(', '));
   }
 
   function reset() {
