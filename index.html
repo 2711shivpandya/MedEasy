@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MedEasy — Voice AI Healthcare Dashboard</title>
+  <meta name="description" content="MedEasy: AI-powered healthcare dashboard — Insurance Explainer, Hospital Finder, Appointment Booking, and Symptom Checker with voice support." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+</head>
+<body>
+
+<!-- ── Voice Overlay ── -->
+<div class="voice-overlay" id="voice-overlay">
+  <div class="voice-overlay-orb">🎙️</div>
+  <div class="voice-overlay-bars">
+    <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+    <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+    <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+  </div>
+  <div class="voice-overlay-label" id="voice-overlay-label">Listening...</div>
+  <div class="voice-overlay-sub">Speak clearly — I'm listening</div>
+  <button class="voice-overlay-cancel" id="voice-overlay-cancel">✕ Cancel</button>
+</div>
+
+
+<!-- ── App Shell ── -->
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🩺</div>
+      <span class="logo-text">MedEasy</span>
+    </div>
+
+    <div class="sidebar-label">Tools</div>
+
+    <nav>
+      <div class="nav-item active" data-page="insurance">
+        <span class="nav-icon">🛡️</span>
+        <span>Insurance Explainer</span>
+      </div>
+      <div class="nav-item" data-page="hospitals">
+        <span class="nav-icon">🏥</span>
+        <span>Hospital Finder</span>
+      </div>
+      <div class="nav-item" data-page="booking">
+        <span class="nav-icon">📅</span>
+        <span>Book Appointment</span>
+      </div>
+      <div class="nav-item" data-page="triage">
+        <span class="nav-icon">🩺</span>
+        <span>Symptom Checker</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="voice-status-pill">
+        <div class="voice-dot" id="voice-dot"></div>
+        <span id="voice-status-text" style="font-size:0.8rem;">Voice Ready</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <div class="main-area">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div>
+        <div class="topbar-title" id="topbar-title">Insurance Explainer</div>
+        <div class="topbar-subtitle" id="topbar-sub">Ask questions about your plan in plain English</div>
+      </div>
+      <div class="topbar-right">
+        <span class="badge badge-teal">🤖 AI Powered</span>
+        <button class="mic-btn" id="mic-btn">
+          <span class="mic-icon">🎙️</span>
+          <span class="mic-label">Speak</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- PAGE CONTENT -->
+    <main class="page-content">
+
+      <!-- ============================================================
+           PAGE 1 — INSURANCE EXPLAINER
+           ============================================================ -->
+      <div class="page-panel active" id="page-insurance">
+
+        <div class="section-head">
+          <h2>🛡️ Insurance Explainer</h2>
+          <p>Enter your plan details, then ask anything about your coverage — I'll explain it in plain English.</p>
+        </div>
+
+        <div class="insurance-layout">
+
+          <!-- Left: Plan Details Form -->
+          <div>
+            <div class="card">
+              <div class="card-title mb-12">Your Insurance Plan</div>
+
+              <div class="plan-form">
+                <div class="field-group">
+                  <div class="field-label">Plan Type</div>
+                  <div class="plan-type-grid">
+                    <div class="plan-type-btn selected" data-type="PPO">PPO</div>
+                    <div class="plan-type-btn" data-type="HMO">HMO</div>
+                    <div class="plan-type-btn" data-type="EPO">EPO</div>
+                    <div class="plan-type-btn" data-type="HDHP">HDHP</div>
+                  </div>
+                </div>
+
+                <div class="field-group">
+                  <label class="field-label" for="ins-deductible">Annual Deductible ($)</label>
+                  <input class="input" id="ins-deductible" type="number" placeholder="e.g. 1500" value="1500" />
+                </div>
+
+                <div class="grid-2">
+                  <div class="field-group">
+                    <label class="field-label" for="ins-copay">Copay ($)</label>
+                    <input class="input" id="ins-copay" type="number" placeholder="e.g. 30" value="30" />
+                  </div>
+                  <div class="field-group">
+                    <label class="field-label" for="ins-coinsurance">Coinsurance (%)</label>
+                    <input class="input" id="ins-coinsurance" type="number" placeholder="e.g. 20" value="20" />
+                  </div>
+                </div>
+
+                <div class="field-group">
+                  <label class="field-label" for="ins-oop">Out-of-Pocket Maximum ($)</label>
+                  <input class="input" id="ins-oop" type="number" placeholder="e.g. 6000" value="6000" />
+                </div>
+
+                <button class="btn btn-primary w-full" id="ins-save-plan">💾 Save Plan & Start</button>
+              </div>
+            </div>
+
+            <!-- Glossary -->
+            <div class="card mt-16">
+              <div class="card-title mb-12">📚 Quick Glossary</div>
+              <div class="glossary-grid">
+                <div class="glossary-term" data-term="deductible">
+                  <div class="glossary-term-name">Deductible</div>
+                  <div class="glossary-term-hint">What you pay first</div>
+                </div>
+                <div class="glossary-term" data-term="copay">
+                  <div class="glossary-term-name">Copay</div>
+                  <div class="glossary-term-hint">Fixed visit cost</div>
+                </div>
+                <div class="glossary-term" data-term="coinsurance">
+                  <div class="glossary-term-name">Coinsurance</div>
+                  <div class="glossary-term-hint">Your % after deductible</div>
+                </div>
+                <div class="glossary-term" data-term="out-of-pocket maximum">
+                  <div class="glossary-term-name">OOP Max</div>
+                  <div class="glossary-term-hint">Your annual limit</div>
+                </div>
+                <div class="glossary-term" data-term="premium">
+                  <div class="glossary-term-name">Premium</div>
+                  <div class="glossary-term-hint">Monthly plan cost</div>
+                </div>
+                <div class="glossary-term" data-term="in-network">
+                  <div class="glossary-term-name">In-Network</div>
+                  <div class="glossary-term-hint">Approved providers</div>
+                </div>
+                <div class="glossary-term" data-term="prior authorization">
+                  <div class="glossary-term-name">Prior Auth</div>
+                  <div class="glossary-term-hint">Pre-approval needed</div>
+                </div>
+                <div class="glossary-term" data-term="formulary">
+                  <div class="glossary-term-name">Formulary</div>
+                  <div class="glossary-term-hint">Covered drug list</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Chat Interface -->
+          <div class="card insurance-qa">
+            <div class="card-title mb-8">💬 Ask Your AI</div>
+            <div class="card-sub mb-12">Type or speak your insurance question</div>
+
+            <!-- Suggestion chips -->
+            <div class="suggest-chips">
+              <span class="chip ins-chip">What is my deductible?</span>
+              <span class="chip ins-chip">How much is a specialist visit?</span>
+              <span class="chip ins-chip">What's my copay?</span>
+              <span class="chip ins-chip">How does coinsurance work?</span>
+              <span class="chip ins-chip">Emergency room costs?</span>
+              <span class="chip ins-chip">Is my plan PPO or HMO?</span>
+              <span class="chip ins-chip">Prescription drug costs?</span>
+              <span class="chip ins-chip">Mental health coverage?</span>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Chat history -->
+            <div class="chat-history" id="insurance-chat-history"></div>
+
+            <!-- Input row -->
+            <div class="qa-input-row mt-12">
+              <input class="input" id="ins-query-input" type="text" placeholder="Ask about your insurance plan..." />
+              <button class="btn btn-outline" id="ins-voice-btn" title="Speak your question">🎙️</button>
+              <button class="btn btn-primary" id="ins-send-btn">Send →</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ============================================================
+           PAGE 2 — HOSPITAL FINDER
+           ============================================================ -->
+      <div class="page-panel" id="page-hospitals">
+
+        <div class="section-head">
+          <h2>🏥 Hospital Finder</h2>
+          <p>Find in-network hospitals near you by city and specialty.</p>
+        </div>
+
+        <!-- Search bar -->
+        <div class="hospital-search-bar">
+          <div class="field-group" style="flex:1;max-width:280px;">
+            <label class="field-label" for="hospital-city">City or ZIP</label>
+            <input class="input" id="hospital-city" type="text" placeholder="e.g. New York, Chicago..." />
+          </div>
+          <div class="field-group" style="flex:1;max-width:220px;">
+            <label class="field-label" for="hospital-specialty">Specialty</label>
+            <select class="select" id="hospital-specialty">
+              <option value="all">All Specialties</option>
+              <option value="Cardiology">Cardiology</option>
+              <option value="Orthopedics">Orthopedics</option>
+              <option value="Oncology">Oncology</option>
+              <option value="Pediatrics">Pediatrics</option>
+              <option value="Neurology">Neurology</option>
+              <option value="General">General / Primary Care</option>
+            </select>
+          </div>
+          <div class="field-group" style="justify-content:flex-end;">
+            <label class="field-label">&nbsp;</label>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-primary" id="hospital-search-btn">🔍 Search</button>
+              <button class="btn btn-outline" id="hosp-voice-btn" title="Search by voice">🎙️ Speak</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter chips -->
+        <div class="filter-chips">
+          <span class="filter-chip active" data-filter="All">All</span>
+          <span class="filter-chip" data-filter="Emergency">🚨 Emergency</span>
+          <span class="filter-chip" data-filter="Cardiology">❤️ Cardiology</span>
+          <span class="filter-chip" data-filter="Orthopedics">🦴 Orthopedics</span>
+          <span class="filter-chip" data-filter="Oncology">🎗️ Oncology</span>
+          <span class="filter-chip" data-filter="Pediatrics">👶 Pediatrics</span>
+          <span class="filter-chip" data-filter="Neurology">🧠 Neurology</span>
+          <span class="filter-chip" data-filter="General">🩺 General</span>
+        </div>
+
+        <!-- Hospital cards grid -->
+        <div class="hospitals-grid" id="hospitals-grid">
+          <!-- Populated by JS -->
+        </div>
+
+      </div>
+
+
+      <!-- ============================================================
+           PAGE 3 — APPOINTMENT BOOKING
+           ============================================================ -->
+      <div class="page-panel" id="page-booking">
+
+        <div class="section-head">
+          <h2>📅 Book an Appointment</h2>
+          <p>Choose a doctor, pick a time, and confirm your booking in minutes.</p>
+        </div>
+
+        <div class="booking-wizard">
+
+          <!-- Wizard Steps Indicator -->
+          <div class="wizard-steps">
+            <div class="wizard-step active" id="wstep-1">
+              <div class="step-circle">1</div>
+              <span class="step-label">Doctor</span>
+            </div>
+            <div class="wizard-step" id="wstep-2">
+              <div class="step-circle">2</div>
+              <span class="step-label">Reason</span>
+            </div>
+            <div class="wizard-step" id="wstep-3">
+              <div class="step-circle">3</div>
+              <span class="step-label">Date & Time</span>
+            </div>
+            <div class="wizard-step" id="wstep-4">
+              <div class="step-circle">4</div>
+              <span class="step-label">Your Info</span>
+            </div>
+            <div class="wizard-step" id="wstep-5">
+              <div class="step-circle">✓</div>
+              <span class="step-label">Confirmed</span>
+            </div>
+          </div>
+
+          <!-- Step 1: Choose Doctor -->
+          <div class="booking-step active" id="bstep-1">
+            <div class="booking-step-title">Select a Doctor</div>
+            <div class="booking-step-sub">Choose from our in-network physicians</div>
+            <div class="doctor-list" id="doctor-list">
+              <!-- populated by JS -->
+            </div>
+            <div class="booking-nav-row">
+              <span></span>
+              <button class="btn btn-primary" id="booking-next-1" disabled>Next: Reason for Visit →</button>
+            </div>
+          </div>
+
+          <!-- Step 2: Reason -->
+          <div class="booking-step" id="bstep-2">
+            <div class="booking-step-title">Reason for Visit</div>
+            <div class="booking-step-sub">Help us prepare for your appointment</div>
+
+            <div class="field-group mb-16">
+              <label class="field-label" for="booking-specialty">Specialty Needed</label>
+              <select class="select" id="booking-specialty">
+                <option>General / Primary Care</option>
+                <option>Cardiology</option>
+                <option>Orthopedics</option>
+                <option>Neurology</option>
+                <option>Oncology</option>
+                <option>Pediatrics</option>
+                <option>Dermatology</option>
+                <option>Mental Health</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label" for="booking-reason">Describe your reason (required)</label>
+              <textarea class="textarea" id="booking-reason" rows="4" placeholder="e.g. Annual checkup, chest pain since 2 days, follow-up for blood pressure medication..."></textarea>
+            </div>
+
+            <div class="booking-nav-row">
+              <button class="btn btn-ghost" id="booking-back-2">← Back</button>
+              <button class="btn btn-primary" id="booking-next-2">Next: Pick Date & Time →</button>
+            </div>
+          </div>
+
+          <!-- Step 3: Date & Time -->
+          <div class="booking-step" id="bstep-3">
+            <div class="booking-step-title">Choose Date & Time</div>
+            <div class="booking-step-sub">Select an available slot. Grey-out slots are unavailable.</div>
+
+            <div class="grid-2" style="gap:28px;">
+              <!-- Calendar -->
+              <div>
+                <div class="calendar-grid">
+                  <div class="calendar-header">
+                    <button class="calendar-nav-btn" id="cal-prev">‹</button>
+                    <span class="calendar-month" id="cal-month-label"></span>
+                    <button class="calendar-nav-btn" id="cal-next">›</button>
+                  </div>
+                  <div class="calendar-days-header">
+                    <div class="cal-day-name">Sun</div><div class="cal-day-name">Mon</div>
+                    <div class="cal-day-name">Tue</div><div class="cal-day-name">Wed</div>
+                    <div class="cal-day-name">Thu</div><div class="cal-day-name">Fri</div>
+                    <div class="cal-day-name">Sat</div>
+                  </div>
+                  <div class="calendar-days" id="calendar-days"></div>
+                </div>
+              </div>
+
+              <!-- Time Slots -->
+              <div>
+                <div class="field-label mb-12">Available Time Slots</div>
+                <div class="time-slots" id="time-slots"></div>
+              </div>
+            </div>
+
+            <div class="booking-nav-row">
+              <button class="btn btn-ghost" id="booking-back-3">← Back</button>
+              <button class="btn btn-primary" id="booking-next-3" disabled>Next: Your Info →</button>
+            </div>
+          </div>
+
+          <!-- Step 4: Patient Info -->
+          <div class="booking-step" id="bstep-4">
+            <div class="booking-step-title">Your Information</div>
+            <div class="booking-step-sub">We keep your data secure. Required for booking.</div>
+
+            <div class="patient-form mt-16">
+              <div class="field-group">
+                <label class="field-label" for="patient-name">Full Name</label>
+                <input class="input" id="patient-name" type="text" placeholder="John Doe" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="patient-dob">Date of Birth</label>
+                <input class="input" id="patient-dob" type="date" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="patient-email">Email</label>
+                <input class="input" id="patient-email" type="email" placeholder="you@email.com" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="patient-phone">Phone</label>
+                <input class="input" id="patient-phone" type="tel" placeholder="+1 (555) 000-0000" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="patient-ins-id">Insurance ID</label>
+                <input class="input" id="patient-ins-id" type="text" placeholder="INS-123456" />
+              </div>
+              <div class="field-group">
+                <label class="field-label" for="patient-ins-provider">Insurance Provider</label>
+                <input class="input" id="patient-ins-provider" type="text" placeholder="e.g. Blue Cross" />
+              </div>
+            </div>
+
+            <div class="booking-nav-row mt-20">
+              <button class="btn btn-ghost" id="booking-back-4">← Back</button>
+              <button class="btn btn-primary btn-lg" id="booking-confirm">✅ Confirm Appointment</button>
+            </div>
+          </div>
+
+          <!-- Step 5: Confirmation -->
+          <div class="booking-step" id="bstep-5">
+            <div class="card confirmation-card">
+              <span class="confirm-icon">🎉</span>
+              <div class="confirm-title">Appointment Confirmed!</div>
+              <div class="confirm-id" id="confirm-booking-id">Booking ID: ME-000000</div>
+
+              <div class="confirm-details">
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Doctor</div>
+                  <div class="confirm-detail-value" id="confirm-doctor">—</div>
+                </div>
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Specialty</div>
+                  <div class="confirm-detail-value" id="confirm-specialty">—</div>
+                </div>
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Hospital</div>
+                  <div class="confirm-detail-value" id="confirm-hospital">—</div>
+                </div>
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Date</div>
+                  <div class="confirm-detail-value" id="confirm-date">—</div>
+                </div>
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Time</div>
+                  <div class="confirm-detail-value" id="confirm-time">—</div>
+                </div>
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Patient</div>
+                  <div class="confirm-detail-value" id="confirm-patient">—</div>
+                </div>
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Insurance ID</div>
+                  <div class="confirm-detail-value" id="confirm-ins">—</div>
+                </div>
+                <div class="confirm-detail">
+                  <div class="confirm-detail-label">Status</div>
+                  <div class="confirm-detail-value" style="color:var(--green);">✅ Confirmed</div>
+                </div>
+              </div>
+
+              <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                <button class="btn btn-primary" id="booking-new">📅 Book Another</button>
+                <button class="btn btn-outline" onclick="Router.go('hospitals')">🏥 Find More Hospitals</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+
+      <!-- ============================================================
+           PAGE 4 — SYMPTOM CHECKER
+           ============================================================ -->
+      <div class="page-panel" id="page-triage">
+
+        <div class="section-head">
+          <h2>🩺 Symptom Checker</h2>
+          <p>Describe your symptoms by text or voice. I'll assess urgency and recommend the right care.</p>
+        </div>
+
+        <div class="symptom-layout">
+
+          <!-- Chat side -->
+          <div>
+            <div class="card symptom-chat">
+              <!-- Quick-pick chips -->
+              <div class="suggest-chips symptom-chips">
+                <span class="chip triage-chip">Chest pain</span>
+                <span class="chip triage-chip">Fever</span>
+                <span class="chip triage-chip">Headache</span>
+                <span class="chip triage-chip">Sore throat</span>
+                <span class="chip triage-chip">Shortness of breath</span>
+                <span class="chip triage-chip">Back pain</span>
+                <span class="chip triage-chip">Severe headache</span>
+                <span class="chip triage-chip">Rash</span>
+              </div>
+
+              <div class="divider"></div>
+
+              <!-- Conversation history -->
+              <div class="symptom-history" id="symptom-history"></div>
+
+              <!-- Input -->
+              <div class="symptom-input-row">
+                <input class="input" id="symptom-input" type="text" placeholder="Describe your symptom..." />
+                <button class="btn btn-outline" id="symptom-voice-btn" title="Speak your symptoms">🎙️</button>
+                <button class="btn btn-primary" id="symptom-send-btn">Send</button>
+              </div>
+
+              <div style="display:flex;gap:8px;margin-top:8px;">
+                <button class="btn btn-outline btn-sm" id="symptom-assess-btn">🩺 Assess Now</button>
+                <button class="btn btn-ghost btn-sm" id="symptom-reset-btn">🔄 Reset</button>
+              </div>
+            </div>
+
+            <!-- Triage result -->
+            <div id="triage-result-panel" style="display:none;margin-top:16px;"></div>
+          </div>
+
+          <!-- Sidebar: Common symptoms -->
+          <div>
+            <div class="card">
+              <div class="card-title mb-12">⚡ Common Symptoms</div>
+              <div class="card-sub mb-16">Tap any to quickly assess</div>
+              <div class="symptom-examples">
+                <button class="symptom-example-btn" data-symptom="chest pain">🫀 Chest pain</button>
+                <button class="symptom-example-btn" data-symptom="high fever">🌡️ High fever (103°F+)</button>
+                <button class="symptom-example-btn" data-symptom="difficulty breathing">💨 Difficulty breathing</button>
+                <button class="symptom-example-btn" data-symptom="severe headache">🤕 Severe headache</button>
+                <button class="symptom-example-btn" data-symptom="broken bone">🦴 Broken bone / fracture</button>
+                <button class="symptom-example-btn" data-symptom="seizure">⚡ Seizure</button>
+                <button class="symptom-example-btn" data-symptom="sore throat">😮 Sore throat</button>
+                <button class="symptom-example-btn" data-symptom="ear infection">👂 Ear infection</button>
+                <button class="symptom-example-btn" data-symptom="urinary tract infection">🚽 UTI</button>
+                <button class="symptom-example-btn" data-symptom="back pain">🔙 Back pain</button>
+                <button class="symptom-example-btn" data-symptom="rash">🌿 Skin rash</button>
+                <button class="symptom-example-btn" data-symptom="cold">🤧 Common cold</button>
+                <button class="symptom-example-btn" data-symptom="headache">💆 Headache</button>
+                <button class="symptom-example-btn" data-symptom="anxiety">😟 Anxiety</button>
+              </div>
+            </div>
+
+            <!-- Urgency legend -->
+            <div class="card mt-16">
+              <div class="card-title mb-12">📊 Urgency Levels</div>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="badge badge-red">🚨 Emergency</span>
+                  <span style="font-size:0.8rem;color:var(--text-2);">Call 911 immediately</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="badge badge-orange">⚠️ Urgent</span>
+                  <span style="font-size:0.8rem;color:var(--text-2);">Urgent care today</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="badge badge-green">✅ Routine</span>
+                  <span style="font-size:0.8rem;color:var(--text-2);">Schedule appointment</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
