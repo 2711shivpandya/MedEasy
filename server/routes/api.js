@@ -90,7 +90,7 @@ router.get('/hospitals', (req, res) => {
 
 // ── POST /api/booking ──────────────────────────────────────────────────────
 
-router.post('/booking', (req, res) => {
+router.post('/booking', async (req, res) => {
   try {
     const {
       doctorName, doctorSpecialty, hospital,
@@ -104,23 +104,23 @@ router.post('/booking', (req, res) => {
       return res.status(400).json({ error: 'Required booking fields are missing.' });
     }
 
-    const db = getDb();
+    const pool = getDb();
 
     // Generate unique booking ID
     const bookingId = 'ME-' + Math.floor(100000 + Math.random() * 900000);
 
-    db.prepare(`
+    await pool.query(`
       INSERT INTO appointments
         (booking_id, user_id, doctor_name, doctor_specialty, hospital,
          appt_date, appt_time, reason, patient_name, patient_email,
          patient_phone, insurance_id, insurance_provider)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `, [
       bookingId, req.user.id, doctorName, doctorSpecialty || '', hospital || '',
       apptDate, apptTime, reason || '',
       patientName, patientEmail, patientPhone || '',
       insuranceId || '', insuranceProvider || ''
-    );
+    ]);
 
     // Optionally notify n8n (fire and forget)
     if (process.env.N8N_BOOKING_WEBHOOK) {
@@ -143,14 +143,15 @@ router.post('/booking', (req, res) => {
 
 // ── GET /api/booking ───────────────────────────────────────────────────────
 
-router.get('/booking', (req, res) => {
+router.get('/booking', async (req, res) => {
   try {
-    const db = getDb();
-    const appointments = db.prepare(
-      'SELECT * FROM appointments WHERE user_id = ? ORDER BY appt_date DESC, appt_time DESC'
-    ).all(req.user.id);
+    const pool = getDb();
+    const result = await pool.query(
+      'SELECT * FROM appointments WHERE user_id = $1 ORDER BY appt_date DESC, appt_time DESC',
+      [req.user.id]
+    );
 
-    res.json({ appointments });
+    res.json({ appointments: result.rows });
   } catch (err) {
     console.error('[api/booking GET]', err);
     res.status(500).json({ error: 'Failed to fetch appointments.' });
@@ -176,10 +177,11 @@ router.post('/triage', async (req, res) => {
     }
 
     // Save to DB
-    const db = getDb();
-    db.prepare(
-      'INSERT INTO symptom_checks (user_id, symptoms, urgency, result_json) VALUES (?, ?, ?, ?)'
-    ).run(req.user.id, symptoms, result.urgency, JSON.stringify(result));
+    const pool = getDb();
+    await pool.query(
+      'INSERT INTO symptom_checks (user_id, symptoms, urgency, result_json) VALUES ($1, $2, $3, $4)',
+      [req.user.id, symptoms, result.urgency, JSON.stringify(result)]
+    );
 
     res.json({ ...result, source: n8nResult ? 'ai' : 'local' });
 
@@ -191,18 +193,18 @@ router.post('/triage', async (req, res) => {
 
 // ── GET /api/profile/appointments ─────────────────────────────────────────
 
-router.get('/profile/appointments', (req, res) => {
+router.get('/profile/appointments', async (req, res) => {
   try {
-    const db = getDb();
-    const appointments = db.prepare(`
+    const pool = getDb();
+    const result = await pool.query(`
       SELECT booking_id, doctor_name, doctor_specialty, hospital,
              appt_date, appt_time, status, created_at
       FROM appointments
-      WHERE user_id = ?
+      WHERE user_id = $1
       ORDER BY appt_date DESC
       LIMIT 20
-    `).all(req.user.id);
-    res.json({ appointments });
+    `, [req.user.id]);
+    res.json({ appointments: result.rows });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch appointments.' });
   }

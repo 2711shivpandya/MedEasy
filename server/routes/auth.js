@@ -1,5 +1,5 @@
 /* ================================================================
-   MedEasy — Auth Routes
+   MedEasy — Auth Routes (Postgres)
    POST /api/auth/register
    POST /api/auth/login
    GET  /api/auth/me
@@ -49,24 +49,24 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Name must be at least 2 characters.' });
     }
 
-    const db = getDb();
+    const pool = getDb();
 
     // Check duplicate email
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
-    if (existing) {
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
 
     // Hash password
     const hash = await bcrypt.hash(password, 12);
 
-    // Insert user
-    const result = db.prepare(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)'
-    ).run(name.trim(), email.toLowerCase().trim(), hash);
+    // Insert user and return it
+    const result = await pool.query(
+      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, created_at',
+      [name.trim(), email.toLowerCase().trim(), hash]
+    );
 
-    const user = db.prepare('SELECT id, name, email, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
-
+    const user = result.rows[0];
     const token = signToken(user);
 
     res.status(201).json({
@@ -91,8 +91,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const db = getDb();
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+    const pool = getDb();
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
@@ -119,16 +120,19 @@ router.post('/login', async (req, res) => {
 
 // ── GET /api/auth/me ─────────────────────────────────────────────────────
 
-router.get('/me', authMiddleware, (req, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const db = getDb();
-    const user = db.prepare('SELECT id, name, email, created_at FROM users WHERE id = ?').get(req.user.id);
+    const pool = getDb();
+    const result = await pool.query('SELECT id, name, email, created_at FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
 
     // Count appointments
-    const apptCount = db.prepare('SELECT COUNT(*) as count FROM appointments WHERE user_id = ?').get(user.id);
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM appointments WHERE user_id = $1', [user.id]);
+    const apptCount = countResult.rows[0].count;
 
     res.json({
       user: {
@@ -136,7 +140,7 @@ router.get('/me', authMiddleware, (req, res) => {
         name: user.name,
         email: user.email,
         memberSince: user.created_at,
-        appointmentCount: apptCount.count
+        appointmentCount: parseInt(apptCount, 10)
       }
     });
   } catch (err) {
